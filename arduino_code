@@ -1,0 +1,163 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+// ------------ LCD ------------
+LiquidCrystal_I2C lcd(0x27, 16, 2); 
+
+// ------------ Motoare ------------
+// Motor stânga
+#define ENA 6
+#define IN1 7
+#define IN2 4
+// Motor dreapta
+#define ENB 3
+#define IN3 9
+#define IN4 5
+
+// ------------ Senzor ultrasonic ------------
+#define TRIG_PIN 12
+#define ECHO_PIN 13
+
+// ------------ Servomotor ------------
+#define SERVO_PIN 11
+Servo scanServo;
+
+// ------------ LED și buzzer ------------
+#define LED_PIN A3
+#define BUZZER_PIN A2
+
+// ------------ Parametri ------------
+int viteza = 150;
+const int prag_ocolire = 40;
+
+void setup() {
+  Serial.begin(9600);
+
+  // LCD
+  lcd.init();          // folosește .init() în loc de .begin()
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Robot pornit");
+
+  // Motoare
+  pinMode(ENA, OUTPUT); pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+
+  // Senzor
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  // LED & buzzer
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  // Feedback la pornire
+  digitalWrite(LED_PIN, HIGH);
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(300);
+  digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  // Servo
+  scanServo.attach(SERVO_PIN);
+  scanServo.write(90);
+  opresteMotoare();
+  delay(300);
+}
+
+void loop() {
+  int distFata = masurareDistantaLa(90);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Dist: ");
+  lcd.print(distFata);
+  lcd.print(" cm");
+
+  if (distFata > prag_ocolire) {
+    digitalWrite(LED_PIN, LOW);
+    mergiInainte();
+  } else {
+    digitalWrite(LED_PIN, HIGH);
+    opresteMotoare();
+    delay(300);
+
+    int distSt = masurareDistantaLa(150);
+    int distDr = masurareDistantaLa(30);
+
+    lcd.setCursor(0, 1);
+    lcd.print("Evitam obstacol");
+
+    if (distSt > distDr) {
+      vireazaStanga();
+    } else {
+      vireazaDreapta();
+    }
+
+    digitalWrite(LED_PIN, LOW);
+  }
+
+  delay(150);
+}
+
+// ------------ Funcții ------------
+
+int masurareDistantaLa(int unghi) {
+  scanServo.write(unghi);
+  delay(250);
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  long durata = pulseIn(ECHO_PIN, HIGH, 30000);
+  if (durata == 0) return 999;
+  return durata * 0.034 / 2;
+}
+
+void mergiInainte() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, viteza);
+
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, viteza);
+}
+
+void opresteMotoare() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, 0);
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, 0);
+}
+
+void vireazaStanga() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  analogWrite(ENA, viteza);
+
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, viteza);
+  delay(600);
+  opresteMotoare();
+}
+
+void vireazaDreapta() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, viteza);
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENB, viteza);
+  delay(600);
+  opresteMotoare();
+}
